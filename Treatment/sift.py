@@ -56,3 +56,4 @@ def generate_train_descriptors():
     output = json.loads(output)
     with open('descriptors.json', 'w') as outfile:
         json.dump(output, outfile)
+#iii
