@@ -117,7 +117,8 @@ def compute(sorted_results):
     df = pd.DataFrame(sorted_results)
     means = df.groupby('category').mean()
     category = means[means['nb_matches'] == means.nb_matches.max()].index.tolist()
-    return category
+    sorted_list = means.sort_index(by=['nb_matches'],ascending=[False]).index.tolist() 
+    return sorted_list
 
 
 def bag_of_words_descriptor():
