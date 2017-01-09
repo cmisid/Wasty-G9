@@ -9,7 +9,7 @@ import pandas as pd
 from pprint import pprint
 from operator import itemgetter
 
-##CONSTANTS
+##CONSTANTS pour le redimmensionnement par défaut des images
 HEIGHT = 100
 WIDTH = 100
 ############
@@ -74,11 +74,17 @@ def update_train_descriptors():
     with open('descriptors.json', 'w') as outfile:
         json.dump(output, outfile)
 
+#Description : Fonction utilisé en interne, pour charger le fichiers JSON des descripteurs
+#Sortie: Descripteur en sortie
 def get_train_descriptor():
     with open('descriptors.json') as data_file:
         data = json.load(data_file)
         return data
 
+#Entrée : numpy_img => une image dans un vecteur numpy
+#         precision => La précision du matching avec la méthode sift (recommandation: precision>0.7)
+#Description : prend une image en entrée et retourne le descripteur associé
+#Sortie : une liste ordonnée de prédictions, la première case correspond à la prédition la plus probable
 def predict_class(numpy_img,precision):
 
     # Initiate SIFT detector
@@ -117,7 +123,7 @@ def compute(sorted_results):
     df = pd.DataFrame(sorted_results)
     means = df.groupby('category').mean()
     category = means[means['nb_matches'] == means.nb_matches.max()].index.tolist()
-    sorted_list = means.sort_index(by=['nb_matches'],ascending=[False]).index.tolist() 
+    sorted_list = means.sort_index(by=['nb_matches'],ascending=[False]).index.tolist()
     return sorted_list
 
 
