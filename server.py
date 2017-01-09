@@ -8,6 +8,7 @@ import numpy
 
 #from Classification.classification import classify
 from Treatment.sift import sift_descriptor
+from Treatment.sift import predict_class
 
 app = Flask(__name__)
 
@@ -21,8 +22,16 @@ def index():
 
 @app.route('/classify/<path:url>')
 def classifier_image(url):
-
-    return None
+    response = requests.get(url)
+    payload = {
+        'url': url
+    }
+    if response.status_code == 200:
+        img = Image.open(BytesIO(response.content))
+        img = numpy.array(img)
+        image_descriptor = predict_class(img,0.8)
+        #payload = { **payload , **image_descriptor }
+    return jsonify(image_descriptor)
 
 @app.route('/descriptor')
 def hello():
