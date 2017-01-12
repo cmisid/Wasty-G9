@@ -1,82 +1,93 @@
-# -*- conding = UTF-8 -*-
+# -*- coding: utf-8 -*-
 """
-fonctions de prétraitement de l'image avant l'extraction des
-descripteurs
-
-Nous avons dans l'ordre une lecture de l'image 
-
-Un redimensionnement de l'image
-
-Et une transformation en niveau de gris
-
+Created on Wed Jan 11 15:00:03 2017
+Programme qui permet de faire ressortir les contours d´une image
+en extrayant la partie interessante de l´image
+@author: Groupe 9: Classification d´images
 """
-
-import os
-import skimage
-from skimage import io, data, feature, filters
-from skimage.transform import resize
-from skimage.color import rgb2gray
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-from scipy import ndimage as ndi
-import math
+from skimage import io, feature, color
+def Canny__Contours_right(img):
+    """ Fonction qui prend en entree une image
+        Trace les contours de l´image et la renvoie """
+    # img=tr.resize(img,(100,100))
+    img_gray = color.rgb2gray(img)
+    edges = feature.canny(img_gray, sigma=3)
+    haut, lar = edges . shape
+    i = 0
+    j = 0
+    for i in range(haut):
+        j = 0
+        while not edges[i, j] and j < lar-1:
+            j += 1
+        if edges[i, j]:
+            edges[i, j:] = True
+    return edges
+def Canny__Contours_left(img):
+    """Fonction qui prend en entree une image, qui la parcourt de gauche a droite
+        et qui renvoie une partie de l´image"""
+    # img=tr.resize(img,(100,100))
+    img_gray = color.rgb2gray(img)
+    edges = feature.canny(img_gray, sigma=3)
+    haut, lar = edges . shape
+    i = 0
+    j = 1
+    for i in range(haut):
+        j = 0
+        while not edges[i, j] and j > -lar:
+            j -= 1
+        if edges[i, j]:
+            edges[i, :j] = True
+    return edges
+def Canny__Contours_upper(img):
+    """Fonction qui prend en entree une image, qui la parcourt de droite a gauche
+        et qui renvoie une partie de l´image"""
+    # img=tr.resize(img,(100,100))
+    img_gray = color.rgb2gray(img)
+    edges = feature.canny(img_gray, sigma=3)
+    haut, lar = edges.shape
+    i = 0
+    j = 1
+    for j in range(lar):
+        i = 0
+        while not edges[i, j] and i > -haut:
+            i -= 1
+        if edges[i, j]:
+            edges[:i, j] = True
+    return edges
+def Canny__Contours_lower(img):
+    """Fonction qui prend en entree une image, qui la parcourt du haut vers le bas
+       et qui renvoie une partie de l´image"""
+    # img=tr.resize(img,(100,100))
+    img_gray = color.rgb2gray(img)
+    edges = feature.canny(img_gray, sigma=3)
+    haut, lar = edges.shape
+    i = 0
+    j = 0
+    for j in range(lar):
+        i = 0
+        while not edges[i, j] and i < haut-1:
+            i += 1
+        if edges[i, j]:
+            edges[i:, j] = True
+    return edges
+def Canny_findContours(image):
+    """Fonction qui prend en entree une image, qui utilise les fonctions
+    precedentes pour reconstituer l'image finale"""
+    edges1 = Canny__Contours_right(image)
+    edges2 = Canny__Contours_left(image)
+    edges3 = Canny__Contours_lower(image)
+    edges4 = Canny__Contours_upper(image)
+    h, l, c = np.shape(image)
+    for i in range(h):
+        for j in range(l):
+            if not edges1[i, j] or not edges2[i, j] or not edges3[i, j] or not edges4[i, j]:
+                image[i, j, :] = 0
+    return image
 
-
-# Fonction permettant de lire une image
-def lireImage(nom_im):
-    """
-    Met en commun la méthode de lecture
-    d'image
-    """
-    return skimage.io.imread(nom_im)
-
-def redimensionner(img, TARGETED_HEIGHT = 100, TARGETED_WIDTH = 100):
-    """
-    Redimensionner une image
-
-    TARGETED_HEIGHT correspond à la hauteur voulu
-    TARGETED_WIDTH correspond à la largeur voulu
-    """
-    # Taille de départ
-    image_height = np.shape(img)[0]
-    image_width = np.shape(img)[1]
-    # Cote limitant de l'image
-    valeur_lim = np.argmin(np.shape(img)[0:2])
-    # proportion entre la hauteur et la largeur
-    heigt_width_proportion = image_height/image_width
-
-    # Si largeur limitant
-    if not valeur_lim:
-        # Redimensionnement proportionnel
-        img_resized = resize(img, (TARGETED_HEIGHT,\
-         math.ceil(TARGETED_WIDTH * 1/heigt_width_proportion)))
-        # Découpage de l'image
-        width_center = math.ceil(np.shape(img_resized)[1]/2)
-        img_resized = img_resized[:, width_center-50:width_center+50]
-    # Si hauteur limitant
-    else:
-        # Redimensionnement proportionnel
-        img_resized = resize(img, (math.ceil(TARGETED_HEIGHT*\
-        heigt_width_proportion), TARGETED_WIDTH))
-        # Découpage
-        height_center = math.ceil(np.shape(img_resized)[0]/2)
-        img_resized = img_resized[height_center-50:height_center+50, :]
-
-    return img_resized
-
-def conversionRgbToGray(img):
-    """
-    Met en commun la méthode de conversion de
-    l'image
-    """
-    return rgb2gray(img)
-
-if __name__ == '__main__':
-    img = lireImage("image2.jpg")
-    img_redim = redimensionner(img)
-    img_grey = conversionRgbToGray(img)
-    skimage.io.imshow(img)
-    skimage.io.imshow(img_redim)
-    skimage.io.imshow(img_grey)
-    skimage.io.show()
+if __name__=='__main__':
+# Test des fonctions
+    img = plt.imread('C:/Users/samba/.spyder-py3/23.jpg')
+    c = Canny_findContours(img)
+    io.imshow(c)
