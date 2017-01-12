@@ -1,5 +1,4 @@
 #Groupe [9]
-#
 
 import os
 import cv2
@@ -8,6 +7,7 @@ import numpy as np
 import pandas as pd
 from pprint import pprint
 from operator import itemgetter
+from sklearn import neighbors
 
 ##CONSTANTS pour le redimmensionnement par défaut des images
 HEIGHT = 100
@@ -86,7 +86,6 @@ def get_train_descriptor():
 #Description : prend une image en entrée et retourne le descripteur associé
 #Sortie : une liste ordonnée de prédictions, la première case correspond à la prédition la plus probable
 def predict_class(numpy_img,precision):
-
     # Initiate SIFT detector
     sift = cv2.xfeatures2d.SIFT_create()
     kp1, des1 = sift.detectAndCompute(numpy_img,None)
@@ -126,26 +125,144 @@ def compute(sorted_results):
     sorted_list = means.sort_index(by=['nb_matches'],ascending=[False]).index.tolist()
     return sorted_list
 
+def path(cls,i): # "./left03.jpg"
+  return "%s/%s%02d.jpg"  % (datapath,cls,i+1)
 
-def bag_of_words_descriptor():
-#1. Obtain the set of bags of features.
-#   Select a large set of images.
-#   Extract the SIFT feature points of all the images in the set and obtain the SIFT descriptor for each feature point that is extracted from each image.
-#   Cluster the set of feature descriptors for the amount of bags we defined and train the bags with clustered feature descriptors (we can use the K-Means algorithm).
-#   Obtain the visual vocabulary.
-#2. Obtain the BoF descriptor for given image/video frame.
-#   Extract SIFT feature points of the given image.
-#   Obtain SIFT descriptor for each feature point.
-#   Match the feature descriptors with the vocabulary we created in the first step
-#   Build the histogram.
-    sift2 = cv2.xfeatures2d.SIFT_create()
-    bowDiction = cv2.BOWImgDescriptorExtractor(sift2, cv2.BFMatcher(cv2.NORM_L2))
+def feature_sift(fn,detect,extract):
+  im = cv2.imread(fn,0)
+  im = cv2.resize(im, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
+  return extract.compute(im, detect.detect(im))[1]
 
-    # List where all the descriptors are stored
-    des_list = []
+def feature_bow(fn,detect,bow_extract):
+  im = cv2.imread(fn,0)
+  im = cv2.resize(im, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
+  return bow_extract.compute(im, detect.detect(im))
 
-    for image_path in image_paths:
-        im = cv2.imread(image_path)
-        kpts = fea_det.detect(im)
-        kpts, des = des_ext.compute(im, kpts)
-        des_list.append((image_path, des))
+def feature_bow2(im,detect,bow_extract):
+    image_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    image_gray = cv2.resize(image_gray, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
+    #print('length of my image heeeeeeey',image_gray.shape)
+    return bow_extract.compute(image_gray, detect.detect(image_gray))
+
+def bof_train_extract_features():
+    detect = cv2.xfeatures2d.SIFT_create()
+    extract = cv2.xfeatures2d.SIFT_create()
+
+    flann_params = dict(algorithm = 1, trees = 5)      # flann enums are missing, FLANN_INDEX_KDTREE=1
+    matcher = cv2.FlannBasedMatcher(flann_params, {})  # need to pass empty dict (#1329)
+
+
+    ## 1.a setup BOW
+    bow_train   = cv2.BOWKMeansTrainer(10) # toy world, you want more.
+    bow_extract = cv2.BOWImgDescriptorExtractor( extract, matcher )
+
+    basepath = "./Image/BD_simple/"
+
+    for dirname, dirnames, filenames in os.walk(basepath):
+        for filename in filenames:
+            if(dirname != basepath):
+               try:
+                   bow_train.add(feature_sift(os.path.join(dirname, filename),detect, extract))
+               except:
+                   print('erreur',os.path.join(dirname, filename))
+#
+    try:
+        voc = bow_train.cluster()
+        bow_extract.setVocabulary( voc )
+    except:
+        print('exception vocabulary')
+
+    print(len(bow_extract.getVocabulary()))
+    return detect, bow_extract
+
+
+def bof_model_descriptor(detect,bow_extract):
+    traindata, trainlabels = [],[]
+    basepath = "./Image/BD_simple/"
+    for dirname, dirnames, filenames in os.walk(basepath):
+        categorie = dirname.split('/')
+        categorie = categorie[len(categorie)-1]
+        for filename in filenames:
+            if(dirname != basepath):
+                try:
+                    traindata.extend(feature_bow(os.path.join(dirname,filename),detect,bow_extract))
+                    trainlabels.append(int(categorie))
+                except:
+                    print('erreur',os.path.join(dirname, filename))
+
+    result = {
+                  'traindata' : traindata,
+                  'trainlabels' : trainlabels
+            }
+    dataframe = pd.DataFrame(result)
+    dataframe.to_csv('descriptor_bof_1.csv')
+    dataframe.to_json("descriptor_bof.json")
+    return result
+
+def predict_bof(img,train,detect,bow_extract):
+    sample = feature_bow2(img,detect,bow_extract)
+    clf = neighbors.KNeighborsClassifier(5, weights='distance')
+    clf.fit(np.array(train['traindata']), np.array(train['trainlabels']))
+    z = clf.predict(sample)
+    if z[0] == 1:
+        return 'electromenagers'
+    elif z[0] == 2:
+        return 'materiaux'
+    elif z[0] == 3:
+        return 'meuble'
+    elif z[0] == 4:
+        return 'petit electromenagers'
+    elif z[0] == 5:
+        return 'textile'
+
+def predict_bof1(img,train):
+    sample = feature_bow(img)
+    clf = neighbors.KNeighborsClassifier(5, weights='distance')
+    clf.fit(np.array(train['traindata']), np.array(train['trainlabels']))
+    z = clf.predict(sample)
+    if z[0] == 1:
+        return 'electromenagers'
+    elif z[0] == 2:
+        return 'materiaux'
+    elif z[0] == 3:
+        return 'meuble'
+    elif z[0] == 4:
+        return 'petit electromenagers'
+    elif z[0] == 5:
+        return 'textile'
+
+
+
+
+
+def ClassifyImage(Image):
+    detect = cv2.xfeatures2d.SIFT_create()
+    extract = cv2.xfeatures2d.SIFT_create()
+
+    flann_params = dict(algorithm = 1, trees = 5)      # flann enums are missing, FLANN_INDEX_KDTREE=1
+    matcher = cv2.FlannBasedMatcher(flann_params, {})  # need to pass empty dict (#1329)
+
+
+    ## 1.a setup BOW
+    bow_train   = cv2.BOWKMeansTrainer(10) # toy world, you want more.
+    bow_extract = cv2.BOWImgDescriptorExtractor( extract, matcher )
+
+#    basepath = "./Image/BD_mini/contenant/"
+#
+#    images = ["1.jpg",
+#    "2.jpg",
+#    "3.jpg",
+#    "4.jpg"]
+#
+#    """
+#    for i in images:
+#      bow_train.add(feature_sift(path("left", i)))
+#      bow_train.add(feature_sift(path("right",i)))
+#    """
+#    bow_train.add(feature_sift(os.path.join(basepath, images[0])))
+#    bow_train.add(feature_sift(os.path.join(basepath, images[1])))
+#    bow_train.add(feature_sift(os.path.join(basepath, images[2])))
+#    bow_train.add(feature_sift(os.path.join(basepath, images[3])))
+
+    voc = bow_train.cluster()
+    bow_extract.setVocabulary( voc )
