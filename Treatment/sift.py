@@ -156,7 +156,7 @@ def bof_train_extract_features():
     bow_train   = cv2.BOWKMeansTrainer(10) # toy world, you want more.
     bow_extract = cv2.BOWImgDescriptorExtractor( extract, matcher )
 
-    basepath = "./Image/BD_simple/"
+    basepath = "./Image/BD_mini/"
 
     for dirname, dirnames, filenames in os.walk(basepath):
         for filename in filenames:
@@ -172,13 +172,32 @@ def bof_train_extract_features():
     except:
         print('exception vocabulary')
 
-    print(len(bow_extract.getVocabulary()))
+
+    try:
+        output = open('detect.pkl', 'wb')
+        pickle.dump(detect, output)
+    except:
+        print("detect.pkl")
+
+    output.close()
+
+
+    try:
+        output = open('bow_extract.pkl', 'wb')
+        pickle.dump(bow_extract, output)
+    except:
+        print("bow_extract.pkl")
+
+    output.close()
+
+
+
     return detect, bow_extract
 
 
 def bof_model_descriptor(detect,bow_extract):
     traindata, trainlabels = [],[]
-    basepath = "./Image/BD_simple/"
+    basepath = "./Image/BD_mini/"
     for dirname, dirnames, filenames in os.walk(basepath):
         categorie = dirname.split('/')
         categorie = categorie[len(categorie)-1]
@@ -205,15 +224,25 @@ def predict_bof(img,train,detect,bow_extract):
     clf.fit(np.array(train['traindata']), np.array(train['trainlabels']))
     z = clf.predict(sample)
     if z[0] == 1:
-        return 'electromenagers'
+        return 'contenant'
     elif z[0] == 2:
-        return 'materiaux'
+        return 'electromenagers'
     elif z[0] == 3:
-        return 'meuble'
+        return 'materiaux'
     elif z[0] == 4:
-        return 'petit electromenagers'
+        return 'meuble'
     elif z[0] == 5:
         return 'textile'
+    # if z[0] == 1:
+    #     return 'electromenagers'
+    # elif z[0] == 2:
+    #     return 'materiaux'
+    # elif z[0] == 3:
+    #     return 'meuble'
+    # elif z[0] == 4:
+    #     return 'petit electromenagers'
+    # elif z[0] == 5:
+    #     return 'textile'
 
 def predict_bof1(img,train):
     sample = feature_bow(img)
