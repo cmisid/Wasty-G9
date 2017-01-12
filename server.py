@@ -20,18 +20,18 @@ from Treatment.sift import bof_model_descriptor
 HEIGHT = 100
 WIDTH = 100
 ############
-detect, bow_extract = bof_train_extract_features()
-print("DOOOOOOOOOOOOOONNNNNNNNNNNNNNEEEEEEEEEEEE")
+detect = None
+bow_extract = None
+train = None
+# detect, bow_extract = bof_train_extract_features()
+# print("DOOOOOOOOOOOOOONNNNNNNNNNNNNNEEEEEEEEEEEE")
 #train = bof_model_descriptor(detect,bow_extract)
 
-def setter(d, b):
-    detect = d
-    bow_extract = b
 
 UPLOAD_FOLDER = './Image/BD_test/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
 #train = pd.read_csv('descriptor_bof.csv')
-train = pd.read_json('descriptor_bof.json')
+#train = pd.read_json('descriptor_bof.json')
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -51,10 +51,13 @@ def index():
 
 @app.route('/train/')
 def train_data():
+    global detect
+    global bow_extract
+    global train
     detect, bow_extract = bof_train_extract_features()
     train = bof_model_descriptor(detect,bow_extract)
-    setter(detect, bow_extract)
     payload = {"size" : detect.descriptorSize() , "vocabulary" : bow_extract.descriptorSize()}
+    print("DOOOOOOOOOOOOOONNNNNNNNNNNNNNEEEEEEEEEEEE")
     return jsonify(payload)
 
 #Entrée en url: <adresse ip>:5000/classify/url_de_l'image_en_question
@@ -104,6 +107,8 @@ def allowed_file(filename):
 
 @app.route('/check/')
 def check():
+    global detect
+    global bow_extract
     payload = {"size" : detect.descriptorSize() , "vocabulary" : bow_extract.descriptorSize()}
     return jsonify(bow_extract.getVocabulary().tolist())
 
