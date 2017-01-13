@@ -15,6 +15,7 @@ from Treatment.sift import predict_class
 from Treatment.sift import predict_bof
 from Treatment.sift import bof_train_extract_features
 from Treatment.sift import bof_model_descriptor
+from Treatment.sift import update_train_descriptors
 
 ##CONSTANTS pour le redimmensionnement par défaut des images
 HEIGHT = 100
@@ -49,21 +50,30 @@ def index():
     }
     return jsonify(payload)
 
-@app.route('/train/')
+@app.route('/train1/')
 def train_data():
+    # try:
+        update_train_descriptors()
+        payload = {"success" : True }
+        return jsonify(payload)
+    # except:
+    #     payload = {"success" : False }
+    #     return jsonify(payload)
+
+@app.route('/train2/')
+def train_data2():
     global detect
     global bow_extract
     global train
-    detect, bow_extract = bof_train_extract_features()
+    detect, bow_extract,voc, bow_train = bof_train_extract_features()
     train = bof_model_descriptor(detect,bow_extract)
     payload = {"size" : detect.descriptorSize() , "vocabulary" : bow_extract.descriptorSize()}
-    print("DOOOOOOOOOOOOOONNNNNNNNNNNNNNEEEEEEEEEEEE")
     return jsonify(payload)
 
 #Entrée en url: <adresse ip>:5000/classify/url_de_l'image_en_question
 #Route pour effectuer une classification
 #Sortie: Liste de catégorie ordonnée du plus probable au moin probable
-@app.route('/classify/<path:url>')
+@app.route('/classify1/<path:url>')
 def classifier_image(url):
     response = requests.get(url)
     payload = {
@@ -75,7 +85,7 @@ def classifier_image(url):
         prediction = predict_class(img,0.8)
         result = { 'prediction': prediction }
         #payload = { **payload , **image_descriptor }
-    return jsonify(prediction)
+    return jsonify(result)
 @app.route('/classify2/<path:url>')
 def classifier_image2(url):
     response = requests.get(url)

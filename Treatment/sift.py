@@ -8,6 +8,9 @@ import pandas as pd
 from pprint import pprint
 from operator import itemgetter
 from sklearn import neighbors
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 
 ##CONSTANTS pour le redimmensionnement par défaut des images
 HEIGHT = 100
@@ -45,9 +48,9 @@ def update_train_descriptors():
     i = 0
     errors = []
     #Browsing image files
-    for dirname, dirnames, filenames in os.walk("./Image/BD_mini/"):
+    for dirname, dirnames, filenames in os.walk("./Image/BD_mini1/"):
         for filename in filenames:
-            if(dirname != './Image/BD_mini/'):
+            if(dirname != './Image/BD_mini1/'):
                 try:
                     i = i + 1
                     path = os.path.join(dirname,filename)
@@ -63,7 +66,7 @@ def update_train_descriptors():
                     image = dict()
                     image = { 'indice' : i, 'category' : category, 'desc_sift' : desc_sift  }
                     images.append(image)
-                    print(i)
+                    print(category)
                 except:
                     errors.append(path)
     print(len(images))
@@ -102,7 +105,7 @@ def predict_class(numpy_img,precision):
         bf = cv2.BFMatcher()
         matches = bf.knnMatch(des1,des2, k=2)
 
-        # Apply ratio test
+        # Calculer le nombre de correspondance et filtrer par précision
         good = []
         for m,n in matches:
             if m.distance < precision *n.distance:
@@ -117,7 +120,10 @@ def predict_class(numpy_img,precision):
         images.append(image)
     sorted_results = sorted(images, key=itemgetter('nb_matches'), reverse=True)
     return compute(sorted_results)
-
+#Entrée : sorted results de la fonction predict_class
+#Description : Ordonne par moyenne de nombre total de correspondance par classe
+#           la liste des catégories
+#Sortie : Une liste du plus probable au moin probable
 def compute(sorted_results):
     df = pd.DataFrame(sorted_results)
     means = df.groupby('category').mean()
@@ -128,76 +134,86 @@ def compute(sorted_results):
 def path(cls,i): # "./left03.jpg"
   return "%s/%s%02d.jpg"  % (datapath,cls,i+1)
 
+#Entrée : chemin de l'image
+#Description : Extraction des features de l'image
+#Sortie : np array de features
 def feature_sift(fn,detect,extract):
   im = cv2.imread(fn,0)
   im = cv2.resize(im, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
   return extract.compute(im, detect.detect(im))[1]
 
+#Entrée : chemin de l'image, detect et extract retournés par bof_train_extract_features()
+#Description : Extraction des features de l'image
+#Sortie : np array de features
 def feature_bow(fn,detect,bow_extract):
+
   im = cv2.imread(fn,0)
   im = cv2.resize(im, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
   return bow_extract.compute(im, detect.detect(im))
 
-def feature_bow2(im,detect,bow_extract):
+#Entrée : Image en np-array en couleurs, detect et extract retournés par bof_train_extract_features()
+#Description : Extraction des features de l'image
+#Sortie : np array de features
+def feature_bow_npimg(im,detect,bow_extract):
     image_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     image_gray = cv2.resize(image_gray, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
-    #print('length of my image heeeeeeey',image_gray.shape)
     return bow_extract.compute(image_gray, detect.detect(image_gray))
 
+
+#Description : deuxième méthode de classification, bag of features
+#Sortie : objets réutilisable pour stocker l'apprentissage
 def bof_train_extract_features():
     detect = cv2.xfeatures2d.SIFT_create()
     extract = cv2.xfeatures2d.SIFT_create()
 
+    # Flann méthode de match entre les keypoints pour former des mots visuels
     flann_params = dict(algorithm = 1, trees = 5)      # flann enums are missing, FLANN_INDEX_KDTREE=1
     matcher = cv2.FlannBasedMatcher(flann_params, {})  # need to pass empty dict (#1329)
 
 
-    ## 1.a setup BOW
-    bow_train   = cv2.BOWKMeansTrainer(10) # toy world, you want more.
+    ## Préparation du bag of words
+    bow_train   = cv2.BOWKMeansTrainer(50) # toy world, you want more.
     bow_extract = cv2.BOWImgDescriptorExtractor( extract, matcher )
 
-    basepath = "./Image/BD_mini/"
+    basepath = "./Image/BD_simple/"
 
+    # Entrainer toutes les images
     for dirname, dirnames, filenames in os.walk(basepath):
         for filename in filenames:
             if(dirname != basepath):
                try:
                    bow_train.add(feature_sift(os.path.join(dirname, filename),detect, extract))
                except:
-                   print('erreur',os.path.join(dirname, filename))
+                   print('skipped image [ bof_train_extract_features() ]',os.path.join(dirname, filename))
+    #
+#    test = bow_train.getDescriptors()
 #
+#    features = []
+#    for item in test :
+#        t = item.tolist()
+#        features.extend(t)
+#
+#    features = np.array(features,dtype=np.float32)
+#    try:
+#        clusterer = KMeans(n_clusters=18, random_state=10)
+#        cluster_labels = clusterer.fit_predict(features)
+#        voc = np.array(clusterer.cluster_centers_, dtype=np.float32)
+#        bow_extract.setVocabulary(voc)
+#    except:
+#        print('exception vocab')
     try:
         voc = bow_train.cluster()
         bow_extract.setVocabulary( voc )
     except:
         print('exception vocabulary')
 
+    return detect, bow_extract,voc, bow_train
 
-    try:
-        output = open('detect.pkl', 'wb')
-        pickle.dump(detect, output)
-    except:
-        print("detect.pkl")
-
-    output.close()
-
-
-    try:
-        output = open('bow_extract.pkl', 'wb')
-        pickle.dump(bow_extract, output)
-    except:
-        print("bow_extract.pkl")
-
-    output.close()
-
-
-
-    return detect, bow_extract
-
-
+#Description : deuxième méthode de classification, bag of features
+#Sortie : dictionnaire qui contient les données d'entrainnement et les classes associées
 def bof_model_descriptor(detect,bow_extract):
     traindata, trainlabels = [],[]
-    basepath = "./Image/BD_mini/"
+    basepath = "./Image/BD_simple/"
     for dirname, dirnames, filenames in os.walk(basepath):
         categorie = dirname.split('/')
         categorie = categorie[len(categorie)-1]
@@ -206,47 +222,92 @@ def bof_model_descriptor(detect,bow_extract):
                 try:
                     traindata.extend(feature_bow(os.path.join(dirname,filename),detect,bow_extract))
                     trainlabels.append(int(categorie))
+#                    trainlabels.extend(categorie)
                 except:
-                    print('erreur',os.path.join(dirname, filename))
+                    print('skipped image [ bof_model_descriptor(detect,bow_extract) ]',os.path.join(dirname, filename))
 
     result = {
                   'traindata' : traindata,
                   'trainlabels' : trainlabels
             }
-    dataframe = pd.DataFrame(result)
-    dataframe.to_csv('descriptor_bof_1.csv')
-    dataframe.to_json("descriptor_bof.json")
+#    dataframe = pd.DataFrame(result)
+#    dataframe.to_csv('descriptor_bof_1.csv')
+#    dataframe.to_json("descriptor_bof.json")
     return result
 
+#Entree: img en nparray, detect et bow_extract sont retournées par la fonction
+#   bof_train_extract_features()
+#Description : Fonction pour prédire, utilisable directement après l'entrainement
+#Sortie : nom de la classe
 def predict_bof(img,train,detect,bow_extract):
-    sample = feature_bow2(img,detect,bow_extract)
-    clf = neighbors.KNeighborsClassifier(5, weights='distance')
-    clf.fit(np.array(train['traindata']), np.array(train['trainlabels']))
-    z = clf.predict(sample)
-    if z[0] == 1:
-        return 'contenant'
-    elif z[0] == 2:
-        return 'electromenagers'
-    elif z[0] == 3:
-        return 'materiaux'
-    elif z[0] == 4:
-        return 'meuble'
-    elif z[0] == 5:
-        return 'textile'
-    # if z[0] == 1:
-    #     return 'electromenagers'
-    # elif z[0] == 2:
-    #     return 'materiaux'
-    # elif z[0] == 3:
-    #     return 'meuble'
-    # elif z[0] == 4:
-    #     return 'petit electromenagers'
-    # elif z[0] == 5:
-    #     return 'textile'
+    print('Predicting ...')
+    sample = feature_bow_npimg(img,detect,bow_extract)
 
+    #Méthodes des classifications
+    clf = AdaBoostClassifier()
+#    clf = RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)
+#    clf = neighbors.KNeighborsClassifier(5, weights='distance')
+#    clf = DecisionTreeClassifier(random_state=0)
+
+    #prédiction
+    clf.fit(np.array(train['traindata']), np.array(train['trainlabels']))
+
+    z = clf.predict(sample)
+#    if z[0] == 1:
+#        return 'deco'
+#    elif z[0] == 2:
+#        return 'divers'
+#    elif z[0] == 3:
+#        return 'electromenager'
+#    elif z[0] == 4:
+#        return 'jardin'
+#    elif z[0] == 5:
+#        return 'mobilier'
+#    elif z[0] == 6:
+#        return 'petit_electromenager'
+#    elif z[0] == 7:
+#        return 'textile'
+#    elif z[0] == 8:
+#        return 'transport'
+#    elif z[0] == 9:
+#        return 'vaisselle'
+    #z = clf.predict_proba(sample)
+#    return sample
+########
+    if z[0] == 1:
+       return 'electromenagers'
+    elif z[0] == 2:
+       return 'meuble'
+    elif z[0] == 3:
+       return 'petit electromenagers'
+    elif z[0] == 4:
+       return 'textile'
+########
+    # if z[0] == 1:
+    #     return 'four'
+    # elif z[0] == 2:
+    #     return 'armoire'
+    # elif z[0] == 3:
+    #     return 'aspirateur'
+    # elif z[0] == 4:
+    #     return 'bureau'
+    # elif z[0] == 5:
+    #     return 'frigo'
+    # elif z[0] == 6:
+    #     return 'chaussures'
+    # elif z[0] == 7:
+    #     return 'sac'
+    # elif z[0] == 9:
+    #     return 'lave linge'
+
+#Entree: chemin local de l'image, detect et bow_extract sont retournées par la fonction
+#   bof_train_extract_features()
+#Description : Fonction de test pour prédire, utilisable directement après l'entrainement
+#Sortie : nom de la classe
 def predict_bof1(img,train):
     sample = feature_bow(img)
-    clf = neighbors.KNeighborsClassifier(5, weights='distance')
+    #clf = neighbors.KNeighborsClassifier(5, weights='distance')
+    #clf = DecisionTreeClassifier(random_state=0)
     clf.fit(np.array(train['traindata']), np.array(train['trainlabels']))
     z = clf.predict(sample)
     if z[0] == 1:
@@ -259,39 +320,3 @@ def predict_bof1(img,train):
         return 'petit electromenagers'
     elif z[0] == 5:
         return 'textile'
-
-
-
-
-
-def ClassifyImage(Image):
-    detect = cv2.xfeatures2d.SIFT_create()
-    extract = cv2.xfeatures2d.SIFT_create()
-
-    flann_params = dict(algorithm = 1, trees = 5)      # flann enums are missing, FLANN_INDEX_KDTREE=1
-    matcher = cv2.FlannBasedMatcher(flann_params, {})  # need to pass empty dict (#1329)
-
-
-    ## 1.a setup BOW
-    bow_train   = cv2.BOWKMeansTrainer(10) # toy world, you want more.
-    bow_extract = cv2.BOWImgDescriptorExtractor( extract, matcher )
-
-#    basepath = "./Image/BD_mini/contenant/"
-#
-#    images = ["1.jpg",
-#    "2.jpg",
-#    "3.jpg",
-#    "4.jpg"]
-#
-#    """
-#    for i in images:
-#      bow_train.add(feature_sift(path("left", i)))
-#      bow_train.add(feature_sift(path("right",i)))
-#    """
-#    bow_train.add(feature_sift(os.path.join(basepath, images[0])))
-#    bow_train.add(feature_sift(os.path.join(basepath, images[1])))
-#    bow_train.add(feature_sift(os.path.join(basepath, images[2])))
-#    bow_train.add(feature_sift(os.path.join(basepath, images[3])))
-
-    voc = bow_train.cluster()
-    bow_extract.setVocabulary( voc )
