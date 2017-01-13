@@ -9,7 +9,7 @@ import os
 import pandas as pd
 from werkzeug.utils import secure_filename
 
-#from Classification.classification import classify
+# from Classification.classification import classify
 from Treatment.sift import sift_descriptor
 from Treatment.sift import predict_class
 from Treatment.sift import predict_bof
@@ -17,32 +17,41 @@ from Treatment.sift import bof_train_extract_features
 from Treatment.sift import bof_model_descriptor
 from Treatment.sift import update_train_descriptors
 
-##CONSTANTS pour le redimmensionnement par défaut des images
+import util
+
+# CONSTANTS pour le redimmensionnement par défaut des images
 HEIGHT = 100
 WIDTH = 100
 ############
+
 detect = None
 bow_extract = None
 train = None
 # detect, bow_extract = bof_train_extract_features()
 # print("DOOOOOOOOOOOOOONNNNNNNNNNNNNNEEEEEEEEEEEE")
-#train = bof_model_descriptor(detect,bow_extract)
+# train = bof_model_descriptor(detect,bow_extract)
 
 
 UPLOAD_FOLDER = './Image/BD_test/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
-#train = pd.read_csv('descriptor_bof.csv')
-#train = pd.read_json('descriptor_bof.json')
+
+# train = pd.read_csv('descriptor_bof.csv')
+# train = pd.read_json('descriptor_bof.json')
+
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-#Route vers la documentation
+# Route vers la documentation
+
+
 @app.route('/')
+@util.crossdomain(origin='*')
 def index():
     payload = {
         'confiance': 0.8,
@@ -50,29 +59,33 @@ def index():
     }
     return jsonify(payload)
 
+
 @app.route('/train1/')
 def train_data():
     # try:
-        update_train_descriptors()
-        payload = {"success" : True }
-        return jsonify(payload)
+    update_train_descriptors()
+    payload = {"success": True}
+    return jsonify(payload)
     # except:
     #     payload = {"success" : False }
     #     return jsonify(payload)
+
 
 @app.route('/train2/')
 def train_data2():
     global detect
     global bow_extract
     global train
-    detect, bow_extract,voc, bow_train = bof_train_extract_features()
-    train = bof_model_descriptor(detect,bow_extract)
-    payload = {"size" : detect.descriptorSize() , "vocabulary" : bow_extract.descriptorSize()}
+    detect, bow_extract, voc, bow_train = bof_train_extract_features()
+    train = bof_model_descriptor(detect, bow_extract)
+    payload = {"size": detect.descriptorSize(), "vocabulary": bow_extract.descriptorSize()}
     return jsonify(payload)
 
-#Entrée en url: <adresse ip>:5000/classify/url_de_l'image_en_question
-#Route pour effectuer une classification
-#Sortie: Liste de catégorie ordonnée du plus probable au moin probable
+# Entrée en url: <adresse ip>:5000/classify/url_de_l'image_en_question
+# Route pour effectuer une classification
+# Sortie: Liste de catégorie ordonnée du plus probable au moin probable
+
+
 @app.route('/classify1/<path:url>')
 def classifier_image(url):
     response = requests.get(url)
@@ -82,10 +95,12 @@ def classifier_image(url):
     if response.status_code == 200:
         img = Image.open(BytesIO(response.content))
         img = numpy.array(img)
-        prediction = predict_class(img,0.8)
-        result = { 'prediction': prediction }
-        #payload = { **payload , **image_descriptor }
+        prediction = predict_class(img, 0.8)
+        result = {'prediction': prediction}
+        # payload = { **payload , **image_descriptor }
     return jsonify(result)
+
+
 @app.route('/classify2/<path:url>')
 def classifier_image2(url):
     response = requests.get(url)
@@ -95,32 +110,37 @@ def classifier_image2(url):
     if response.status_code == 200:
         img = Image.open(BytesIO(response.content))
         img = numpy.array(img)
-        img = cv2.resize(img, (WIDTH,HEIGHT), interpolation = cv2.INTER_AREA)
-        prediction = predict_bof(img,train,detect,bow_extract)
-        result = { 'prediction': prediction }
-        #payload = { **payload , **image_descriptor }
+        img = cv2.resize(img, (WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
+        # prediction = predict_bof(img, train, detect, bow_extract)
+        result = {'prediction': prediction}
+        # payload = { **payload , **image_descriptor }
     return jsonify(prediction)
-@app.route('/classify/',methods=['POST'])
-def classifier_image_bytes():
-    #print(request.headers)
-    #print(request.content)
-    print(request.status_code)
-    if request.method == 'POST':
-        img = Image.open(BytesIO(response.content))
-        img = numpy.array(img)
-        prediction = predict_class(img,0.8)
-        result = { 'prediction': prediction }
+
+
+# Route that will process the file upload
+@app.route('/upload_image', methods=['POST'])
+@util.crossdomain(origin='*')
+def upload_image():
+    # Get the name of the uploaded file
+    if request.data:
+        img = Image.open(BytesIO(request.data))
+        img.show()
+        return jsonify({'status_code': 200})
+    return jsonify({'status_code': 500})
+
 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 @app.route('/check/')
 def check():
     global detect
     global bow_extract
-    payload = {"size" : detect.descriptorSize() , "vocabulary" : bow_extract.descriptorSize()}
+    payload = {"size": detect.descriptorSize(), "vocabulary": bow_extract.descriptorSize()}
     return jsonify(bow_extract.getVocabulary().tolist())
+
 
 @app.route('/upload/', methods=['GET', 'POST'])
 def upload_file():
@@ -140,10 +160,10 @@ def upload_file():
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             img = cv2.imread(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            prediction = predict_class(img,0.8)
-            result = { 'prediction': prediction }
-            return jsonify(prediction);
-            #payload = { **payload , **image_descriptor }
+            prediction = predict_class(img, 0.8)
+            result = {'prediction': prediction}
+            return jsonify(prediction)
+            # payload = { **payload , **image_descriptor }
     return '''
     <!doctype html>
     <title>Upload new File</title>
