@@ -16,8 +16,11 @@ from Treatment.sift import predict_bof
 from Treatment.sift import bof_train_extract_features
 from Treatment.sift import bof_model_descriptor
 from Treatment.sift import update_train_descriptors
+<<<<<<< HEAD
 from Treatment.sift import bow_train_model
 from Treatment.sift import predict_bow
+=======
+>>>>>>> f4896f6affc488d792ec7fcf523b7499bccabc2f
 
 import util
 
@@ -29,11 +32,16 @@ WIDTH = 100
 detect = None
 bow_extract = None
 train = None
+<<<<<<< HEAD
 m_features  = None
 voc = None
 stdSlr = None
 k = None
 # detect, bow_extract = bof_train_extract_features() 
+=======
+# detect, bow_extract = bof_train_extract_features()
+# print("DOOOOOOOOOOOOOONNNNNNNNNNNNNNEEEEEEEEEEEE")
+>>>>>>> f4896f6affc488d792ec7fcf523b7499bccabc2f
 # train = bof_model_descriptor(detect,bow_extract)
 
 
@@ -86,6 +94,7 @@ def train_data2():
     payload = {"size": detect.descriptorSize(), "vocabulary": bow_extract.descriptorSize()}
     return jsonify(payload)
 
+<<<<<<< HEAD
 @app.route('/train3/')
 def train_data3():
     global im_features
@@ -100,6 +109,11 @@ def train_data3():
 #Entrée en url: <adresse ip>:5000/classify/url_de_l'image_en_question
 #Route pour effectuer une classification
 #Sortie: Liste de catégorie ordonnée du plus probable au moin probable
+=======
+# Entrée en url: <adresse ip>:5000/classify/url_de_l'image_en_question
+# Route pour effectuer une classification
+# Sortie: Liste de catégorie ordonnée du plus probable au moin probable
+>>>>>>> f4896f6affc488d792ec7fcf523b7499bccabc2f
 
 
 @app.route('/classify1/<path:url>')
@@ -130,6 +144,7 @@ def classifier_image2(url):
         # prediction = predict_bof(img, train, detect, bow_extract)
         result = {'prediction': prediction}
         # payload = { **payload , **image_descriptor }
+<<<<<<< HEAD
     return jsonify(prediction)
 
 @app.route('/classify3/<path:url>')
@@ -157,6 +172,22 @@ def classifier_image_bytes():
         img = numpy.array(img)
         prediction = predict_class(img,0.8)
         result = { 'prediction': prediction }
+=======
+    return jsonify(prediction)
+
+
+# Route that will process the file upload
+@app.route('/upload_image', methods=['POST'])
+@util.crossdomain(origin='*')
+def upload_image():
+    # Get the name of the uploaded file
+    if request.data:
+        img = Image.open(BytesIO(request.data))
+        img.show()
+        return jsonify({'status_code': 200})
+    return jsonify({'status_code': 500})
+
+>>>>>>> f4896f6affc488d792ec7fcf523b7499bccabc2f
 
 # Route that will process the file upload
 @app.route('/upload_image', methods=['POST'])
